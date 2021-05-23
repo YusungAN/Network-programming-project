@@ -1,0 +1,21 @@
+# Ignore All
+*
+ # Unignore All with extensions
+!*.*
+
+# Unignore All dirs
+!*/
+
+# Ignore temporary files
+*.swp
+.~
+thumbs.db
+
+# Ignore All GCC generated files
+*.o
+*.obj
+*.lib
+*.so
+*.dll
+*.exe
+*.out
