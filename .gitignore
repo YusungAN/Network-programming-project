@@ -19,3 +19,6 @@ thumbs.db
 *.dll
 *.exe
 *.out
+
+# Ignore Shell files
+*.sh

@@ -18,7 +18,25 @@
 #define PORTNUM 9100
 #define SOCK_SETSIZE 1021
 
+#define MAX_CLIENT 30
+#define MAX_NICKNAME_LENGTH 30
+
+typedef struct
+{
+    int opcode;
+    int length;
+    char data[1024];
+} request;
+
+typedef struct
+{
+    char nick[30];
+    int sockfd;
+    int connected;
+} userdata;
+
 void nonblock(int sockfd);
+void printonlineusers(userdata *arr);
 
 int main(int argc, char **argv)
 {
@@ -29,8 +47,14 @@ int main(int argc, char **argv)
     int sockfd;
     int readn;
     int i = 0;
+    int on;
+
+    userdata u_data[MAX_CLIENT];
+
+    char aBuffer[5];
     char buf[MAXLINE];
     fd_set readfds, allfds;
+    request req;
 
     struct sockaddr_in server_addr, client_addr;
 
@@ -55,6 +79,9 @@ int main(int argc, char **argv)
         return 1;
     }
 
+    on = 1;
+    setsockopt(listen_fd, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on));
+
     FD_ZERO(&readfds);
     FD_SET(listen_fd, &readfds);
 
@@ -70,7 +97,7 @@ int main(int argc, char **argv)
             addrlen = sizeof(client_addr);
             client_fd = accept(listen_fd,
                                (struct sockaddr *)&client_addr, &addrlen);
-	    nonblock(client_fd);
+            nonblock(client_fd);
             FD_SET(client_fd, &readfds);
 
             if (client_fd > maxfd)
@@ -84,30 +111,69 @@ int main(int argc, char **argv)
             sockfd = i;
             if (FD_ISSET(sockfd, &allfds))
             {
-                if ((readn = read(sockfd, buf, MAXLINE - 1)) == 0)
+
+                if ((readn = read(sockfd, buf, sizeof(buf) - 1)) > 0)
                 {
-                    printf("close\n");
-                    close(sockfd);
-                    FD_CLR(sockfd, &readfds);
+                    printf("%s\n", &buf[8]);
+                    memset(&req, 0, sizeof(req));
+                    memset(aBuffer, 0, sizeof(aBuffer));
+                    memcpy(aBuffer, buf, 4);
+                    req.opcode = atoi(aBuffer);
+                    memcpy(aBuffer, &buf[4], 4);
+                    req.length = atoi(aBuffer);
+                    printf("%d\n", req.length);
+                    memcpy(req.data, &buf[8], req.length); //req.length);
+
+                    printf("%d %d %s\n", req.opcode, req.length, req.data);
+
+                    switch (req.opcode)
+                    {
+
+                    case 0x0: // Initial Connecting Information
+                        /*
+                            Data - 30Byte
+                            Opcode(4) Length(4) Data( Nick(30) ) EOF
+                        */
+
+                        if (req.length > 30)
+                        {
+                            perror("Nickname cannot be longer than 30 letters");
+                        }
+                        else
+                        {
+                            memset(&u_data[sockfd], 0, sizeof(userdata));
+                            memcpy(&u_data[sockfd].nick, req.data, MAX_NICKNAME_LENGTH);
+                            u_data[sockfd].connected = 1;
+                        }
+
+                        printonlineusers(u_data);
+
+                        break;
+
+                    case 0x1: // Message Send Request
+                        /*
+                            Data - ~ 1028 byte
+                            Opcode(4) Length(4) Data( Desc(4) Data(1024) )
+                        */
+                        break;
+
+                    default:
+                        break;
+                    }
+
+                    buf[readn] = 0;
+                    printf("[%d] = %s", sockfd, req.data);
+                    write(sockfd, buf, strlen(buf));
                 }
                 else
                 {
+                    printf("close\n");
+                    u_data[sockfd].connected = 0;
+                    close(sockfd);
+                    FD_CLR(sockfd, &readfds);
+                    printonlineusers(u_data);
+                }
 
-                    do
-                    {
-                        buf[readn] = 0;
-			printf("[%d] = %s", sockfd, buf); 
-                        write(sockfd, buf, strlen(buf));
-                    }while((readn = read(sockfd, buf, sizeof(buf) - 1)) > 0);
-                
-		    if(readn == -1){
-			if(errno != EAGAIN)
-			{
-				close(sockfd);
-				FD_CLR(sockfd, &readfds);
-			}
-		    }
-		}
                 if (--fd_num <= 0)
                     break;
             }
@@ -117,18 +183,29 @@ int main(int argc, char **argv)
 
 void nonblock(int sockfd) // Making Socket non-blocking socket
 {
-	int opts;
-	opts = fcntl(sockfd, F_GETFL);
-	if(opts < 0)
-	{
-		printf("fctntl(F_GETFL) error\n");
-		exit(1);
-	}
-	opts = (opts | O_NONBLOCK);
-	if(fcntl(sockfd, F_SETFL, opts) < 0)
-	{
-		printf("fcntl(F_SETFL) error\n");
-		exit(1);
-	}
+    int opts;
+    opts = fcntl(sockfd, F_GETFL);
+    if (opts < 0)
+    {
+        printf("fctntl(F_GETFL) error\n");
+        exit(1);
+    }
+    opts = (opts | O_NONBLOCK);
+    if (fcntl(sockfd, F_SETFL, opts) < 0)
+    {
+        printf("fcntl(F_SETFL) error\n");
+        exit(1);
+    }
+}
 
+void printonlineusers(userdata *arr)
+{
+    printf("\nCurrently Online:\n");
+    for (int i = 0; i < MAX_CLIENT; i++)
+    {
+        if (arr[i].connected == 1)
+        {
+            printf("[%d] %s\n", arr[i].sockfd, arr[i].nick);
+        }
+    }
 }
