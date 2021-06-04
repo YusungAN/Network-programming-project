@@ -23,20 +23,6 @@
 #define MAX_CLIENT 30
 #define MAX_NICKNAME_LENGTH 30
 
-typedef struct
-{
-    int opcode;
-    int length;
-    char data[1024];
-} request;
-
-typedef struct
-{
-    char nick[30];
-    int sockfd;
-    int connected;
-} userdata;
-
 void nonblock(int sockfd);
 void printonlineusers(userdata *arr);
 void itoa(int i, char *st);
