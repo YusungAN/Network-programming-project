@@ -19,6 +19,8 @@
 #define MAXLINE 1024
 #define PORTNUM 9100
 #define SOCK_SETSIZE 1021
+#define INTERVAL 10
+#define MULTICAST_INTERVAL 2000
 
 #define MAX_CLIENT 30
 #define MAX_NICKNAME_LENGTH 30
@@ -37,8 +39,10 @@ int main(int argc, char **argv)
     int readn;
     int i = 0;
     int on;
+    int timer = 0;
 
     userdata u_data[MAX_CLIENT];
+    messagedata m_data;
 
     char aBuffer[5];
     char buf[MAXLINE];
@@ -129,20 +133,25 @@ int main(int argc, char **argv)
     memcpy(&CM_info_message[off], &send_msg.ip, sizeof(send_msg.ip));
     off += sizeof(send_msg.ip);
 
+    multicast_tv.tv_sec = 0;
+    multicast_tv.tv_usec = 0;
+
     while (1)
     {
-        //multicast server info
-        multicast_tv.tv_sec = 2;
-        multicast_tv.tv_usec = 0;
         allfds = readfds;
         fd_num = select(maxfd + 1, &allfds, (fd_set *)0,
-                        (fd_set *)0, NULL);
+                        (fd_set *)0, &multicast_tv);
+        usleep(INTERVAL * 1000);
+        timer += INTERVAL;
 
-        if (fd_num == 0)
+        if (timer >= MULTICAST_INTERVAL)
         {
             printf("send server info\n");
             printf("%s\n", &CM_info_message[0]);
             sendto(multicast_sock, CM_info_message, strlen(CM_info_message), 0, (struct sockaddr *)&multicast_serv_addr, sizeof(multicast_serv_addr));
+
+            printonlineusers(u_data);
+            timer = 0;
         }
 
         if (FD_ISSET(listen_fd, &allfds)) // accept()
@@ -167,6 +176,7 @@ int main(int argc, char **argv)
 
                 if ((readn = read(sockfd, buf, sizeof(buf) - 1)) > 0)
                 {
+                    printf("[RECV] %s\n", buf);
                     memset(&req, 0, sizeof(req));
                     memset(aBuffer, 0, sizeof(aBuffer));
                     memcpy(aBuffer, buf, 4);
@@ -187,13 +197,14 @@ int main(int argc, char **argv)
 
                         if (req.length > 30)
                         {
-                            perror("Nickname cannot be longer than 30 letters");
+                            perror("Nickname cannot be longer than 30 letters\n");
                         }
                         else
                         {
                             memset(&u_data[sockfd], 0, sizeof(userdata));
                             memcpy(&u_data[sockfd].nick, req.data, MAX_NICKNAME_LENGTH);
                             u_data[sockfd].connected = 1;
+                            u_data[sockfd].sockfd = sockfd;
                         }
 
                         printonlineusers(u_data);
@@ -201,10 +212,17 @@ int main(int argc, char **argv)
                         break;
 
                     case 0x1: // Message Send Request
-                        /*
-                            Data - ~ 1028 byte
-                            Opcode(4) Length(4) Data( Desc(4) Data(1024) )
+                              /*
+                            Data - ~ 1012 byte
+                            Opcode(4) Length(4) Data( Desc(4) Data(1012) )
                         */
+                        memset(&m_data, 0, sizeof(m_data));
+                        memset(aBuffer, 0, sizeof(aBuffer));
+                        memcpy(aBuffer, &req.data, 4);
+                        m_data.dest = atoi(aBuffer);
+                        memcpy(m_data.message, &req.data[4], req.length - 4);
+                        write(m_data.dest, m_data.message, req.length - 4);
+
                         break;
 
                     default:
@@ -212,8 +230,8 @@ int main(int argc, char **argv)
                     }
 
                     buf[readn] = 0;
-                    printf("[%d] = %s", sockfd, req.data);
-                    write(sockfd, buf, strlen(buf));
+                    printf("[%d] = %s\n", sockfd, req.data);
+                    //write(sockfd, buf, strlen(buf));
                 }
                 else
                 {
@@ -250,7 +268,7 @@ void nonblock(int sockfd) // Making Socket non-blocking socket
 
 void printonlineusers(userdata *arr)
 {
-    printf("\nCurrently Online:\n");
+    printf("\nCurrently Online:\n----------------------\n");
     for (int i = 0; i < MAX_CLIENT; i++)
     {
         if (arr[i].connected == 1)
@@ -258,6 +276,7 @@ void printonlineusers(userdata *arr)
             printf("[%d] %s\n", arr[i].sockfd, arr[i].nick);
         }
     }
+    printf("----------------------\n");
 }
 
 void itoa(int i, char *st)

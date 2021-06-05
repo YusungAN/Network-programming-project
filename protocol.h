@@ -18,3 +18,9 @@ typedef struct
     int sockfd;
     int connected;
 } userdata; // userdata
+
+typedef struct
+{
+    int dest;
+    char message[1012];
+} messagedata;

@@ -4,20 +4,16 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <sys/socket.h>
+#include "protocol.h"
 
 #define BUF_SIZE 1024
-
-typedef struct
-{
-	int opcode;
-	int length;
-	char data[1024];
-} request;
 
 int main(int argc, char *argv[])
 {
 	int sock;
+	int dest;
 	char message[BUF_SIZE];
+	char temp[BUF_SIZE];
 	int str_len;
 	struct sockaddr_in serv_adr;
 
@@ -53,18 +49,19 @@ int main(int argc, char *argv[])
 		printf("Connected...........\n");
 
 	sprintf(message, "0000%04ld%s", strlen(nickname), nickname);
-	printf("%s\n", message);
 	write(sock, message, strlen(message));
 	while (1)
 	{
 		memset(message, 0, BUF_SIZE);
 		fputs("Input message(Q to quit): ", stdout);
-		fgets(message, BUF_SIZE, stdin);
+		//fgets(message, BUF_SIZE, stdin);
 
+		scanf("%d %s", &dest, message);
 		if (!strcmp(message, "q\n") || !strcmp(message, "Q\n"))
 			break;
 
-		write(sock, message, strlen(message));
+		sprintf(temp, "0001%04ld%04d%s", strlen(message) + 4, dest, message);
+		write(sock, temp, strlen(temp));
 		str_len = read(sock, message, BUF_SIZE);
 		printf("Message from server: %s", message);
 	}
