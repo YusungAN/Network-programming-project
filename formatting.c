@@ -32,3 +32,26 @@ void initialHandshakeRequest(char *str, char *buf)
 {
     sprintf(buf, "0000%04ld%s", strlen(str), str);
 }
+
+void parseChatRelay(char *protocol, int *sender, char *message)
+{
+    char aBuffer[5] = {
+        0,
+    };
+    memcpy(aBuffer, &protocol[8], 4);
+    *sender = atoi(aBuffer);
+    memcpy(aBuffer, &protocol[4], 4);
+    memcpy(message, &protocol[12], atoi(aBuffer) - 4);
+}
+
+void parseOpcode(char *opcode, int *target)
+{
+    char *p = opcode;
+    int r = 0;
+    while (p && *p)
+    {
+        r <<= 1;
+        r += ((*p++) & 0x01);
+    }
+    *target = r;
+}

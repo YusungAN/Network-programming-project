@@ -6,6 +6,7 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 #include "protocol.h"
+#include "formatting.h"
 
 #define BUF_SIZE 1024
 
@@ -16,10 +17,13 @@ int main(int argc, char *argv[])
 	char message[BUF_SIZE];
 	char temp[BUF_SIZE];
 	int str_len;
+	int sender;
 	struct sockaddr_in serv_adr;
 
 	fd_set readfds, allfds;
 	int fd_num;
+	respond res;
+	char aBuffer[5];
 
 	if (argc != 3)
 	{
@@ -52,7 +56,7 @@ int main(int argc, char *argv[])
 	else
 		printf("Connected...........\n");
 
-	sprintf(message, "0000%04ld%s", strlen(nickname), nickname);
+	initialHandshakeRequest(nickname, message);
 	write(sock, message, strlen(message));
 
 	FD_ZERO(&readfds);
@@ -83,16 +87,49 @@ int main(int argc, char *argv[])
 			if (!strcmp(message, "q\n") || !strcmp(message, "Q\n"))
 				break;
 
-			sprintf(temp, "0001%04ld%04d%s", strlen(message) + 4, dest, message);
+			msgRequest(dest, message, temp);
 			write(sock, temp, strlen(temp));
 		}
 
 		if (FD_ISSET(sock, &allfds))
 		{
+			memset(message, 0, sizeof(message));
+			memset(temp, 0, sizeof(temp));
 			if ((str_len = read(sock, message, BUF_SIZE)) > 0)
 			{
-				message[str_len] = 0;
-				printf("\nMessage from server: %s\n", message);
+				memset(&res, 0, sizeof(res));
+				memset(aBuffer, 0, 5);
+				memcpy(aBuffer, message, 4);
+				parseOpcode(aBuffer, &res.opcode);
+				memcpy(aBuffer, &message[4], 4);
+				res.length = atoi(aBuffer);
+				memcpy(res.data, &message[8], res.length);
+
+				switch (res.opcode)
+				{
+
+				case 0x8:
+					// Server Message Relay
+					/*
+                            Data - ~ 1012 byte
+                            Opcode(4) Length(4) Data( Sender(4) Data(1012) )
+                    */
+					parseChatRelay(message, &sender, temp);
+					printf("\nMessage from [ %d ]: %s\n", sender, temp);
+					break;
+				case 0xF:
+					// Server Error ACK
+					/*
+							Errno - 4 byte Message - ~ 1012 bytes
+							Opcode(4) Length(4) Data( Errno(4) Data(1012) )
+					*/
+
+					// TODO
+
+					break;
+				default:
+					break;
+				}
 			}
 			else
 			{

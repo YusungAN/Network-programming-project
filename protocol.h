@@ -12,6 +12,8 @@ typedef struct
     char data[1016]; // 8~ data (char[1016])
 } request;
 
+typedef request respond;
+
 typedef struct
 {
     char nick[30];

@@ -173,7 +173,7 @@ int main(int argc, char **argv)
             sockfd = i;
             if (FD_ISSET(sockfd, &allfds))
             {
-
+                memset(buf, 0, sizeof(buf));
                 if ((readn = read(sockfd, buf, sizeof(buf) - 1)) > 0)
                 {
                     printf("[RECV] %s\n", buf);
@@ -224,8 +224,10 @@ int main(int argc, char **argv)
                         if (m_data.dest < 5)
                             continue;
                         memcpy(m_data.message, &req.data[4], req.length - 4);
-                        write(m_data.dest, m_data.message, req.length - 4);
 
+                        memset(buf, 0, sizeof(buf));
+                        sprintf(buf, "1000%04ld%04d%s", strlen(m_data.message) + 4, sockfd, m_data.message);
+                        write(m_data.dest, buf, strlen(buf));
                         break;
 
                     default:
