@@ -16,3 +16,4 @@
 | :---:   | :-: | :-: | :-: |
 | 0000 (0x0) | Client Login | 클라이언트 최초 로그인 | nickname (~30 byte) |
 | 0001 (0x1) | Client Chat Request | 채팅 요청 | Dest (4 byte), Message (~1012 byte) |
+| 1000 (0x8) | Server Chat Relay | 채팅 전달 | Sender(4 byte), Message (~1012 byte) |
