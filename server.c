@@ -146,7 +146,7 @@ int main(int argc, char **argv)
 
         if (timer >= MULTICAST_INTERVAL)
         {
-            printf("send server info\n");
+            printf("\x1b[H\x1b[Jsend server info\n");
             printf("%s\n", &CM_info_message[0]);
             sendto(multicast_sock, CM_info_message, strlen(CM_info_message), 0, (struct sockaddr *)&multicast_serv_addr, sizeof(multicast_serv_addr));
 
@@ -159,7 +159,7 @@ int main(int argc, char **argv)
             addrlen = sizeof(client_addr);
             client_fd = accept(listen_fd,
                                (struct sockaddr *)&client_addr, &addrlen);
-            nonblock(client_fd);
+            //nonblock(client_fd);
             FD_SET(client_fd, &readfds);
 
             if (client_fd > maxfd)
@@ -207,7 +207,8 @@ int main(int argc, char **argv)
                             u_data[sockfd].sockfd = sockfd;
                         }
 
-                        printonlineusers(u_data);
+                        printf("[%d] %s Connected.\n", u_data[sockfd].sockfd, u_data[sockfd].nick);
+                        //printonlineusers(u_data);
 
                         break;
 
@@ -220,6 +221,8 @@ int main(int argc, char **argv)
                         memset(aBuffer, 0, sizeof(aBuffer));
                         memcpy(aBuffer, &req.data, 4);
                         m_data.dest = atoi(aBuffer);
+                        if (m_data.dest < 5)
+                            continue;
                         memcpy(m_data.message, &req.data[4], req.length - 4);
                         write(m_data.dest, m_data.message, req.length - 4);
 
@@ -239,7 +242,6 @@ int main(int argc, char **argv)
                     u_data[sockfd].connected = 0;
                     close(sockfd);
                     FD_CLR(sockfd, &readfds);
-                    printonlineusers(u_data);
                 }
 
                 if (--fd_num <= 0)
