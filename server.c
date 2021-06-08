@@ -28,6 +28,7 @@
 void nonblock(int sockfd);
 void printonlineusers(userdata *arr);
 void itoa(int i, char *st);
+int fetchUser(userdata *data, char *target);
 
 int main(int argc, char **argv)
 {
@@ -41,7 +42,13 @@ int main(int argc, char **argv)
     int on;
     int timer = 0;
 
+    int client = 0;
+
     userdata u_data[MAX_CLIENT];
+    memset(u_data, 0, sizeof(u_data));
+    int sock_u_map[MAX_CLIENT] = {
+        0,
+    };
     messagedata m_data;
 
     char aBuffer[5];
@@ -133,7 +140,7 @@ int main(int argc, char **argv)
     memcpy(&CM_info_message[off], &send_msg.ip, sizeof(send_msg.ip));
     off += sizeof(send_msg.ip);
 
-    multicast_tv.tv_sec = 0;
+    multicast_tv.tv_sec = 2;
     multicast_tv.tv_usec = 0;
 
     while (1)
@@ -141,17 +148,16 @@ int main(int argc, char **argv)
         allfds = readfds;
         fd_num = select(maxfd + 1, &allfds, (fd_set *)0,
                         (fd_set *)0, &multicast_tv);
-        usleep(INTERVAL * 1000);
-        timer += INTERVAL;
 
-        if (timer >= MULTICAST_INTERVAL)
+        if (fd_num == 0)
         {
             printf("\x1b[H\x1b[Jsend server info\n");
             printf("%s\n", &CM_info_message[0]);
             sendto(multicast_sock, CM_info_message, strlen(CM_info_message), 0, (struct sockaddr *)&multicast_serv_addr, sizeof(multicast_serv_addr));
 
             printonlineusers(u_data);
-            timer = 0;
+            multicast_tv.tv_sec = 2;
+            multicast_tv.tv_usec = 0;
         }
 
         if (FD_ISSET(listen_fd, &allfds)) // accept()
@@ -201,13 +207,23 @@ int main(int argc, char **argv)
                         }
                         else
                         {
-                            memset(&u_data[sockfd], 0, sizeof(userdata));
-                            memcpy(&u_data[sockfd].nick, req.data, MAX_NICKNAME_LENGTH);
-                            u_data[sockfd].connected = 1;
-                            u_data[sockfd].sockfd = sockfd;
+                            if ((on = fetchUser(u_data, req.data)) > -1)
+                            {
+                                sock_u_map[sockfd] = on;
+                                u_data[sock_u_map[sockfd]].sockfd = sockfd;
+                                u_data[sock_u_map[sockfd]].connected = 2;
+                            }
+                            else
+                            {
+                                sock_u_map[sockfd] = client;
+                                memset(&u_data[client], 0, sizeof(userdata));
+                                memcpy(&u_data[client].nick, req.data, MAX_NICKNAME_LENGTH);
+                                u_data[client].connected = 2;
+                                u_data[client++].sockfd = sockfd;
+                            }
                         }
 
-                        printf("[%d] %s Connected.\n", u_data[sockfd].sockfd, u_data[sockfd].nick);
+                        printf("[%d] %s Connected.\n", u_data[sock_u_map[sockfd]].sockfd, u_data[sock_u_map[sockfd]].nick);
                         //printonlineusers(u_data);
 
                         break;
@@ -241,7 +257,7 @@ int main(int argc, char **argv)
                 else
                 {
                     printf("close\n");
-                    u_data[sockfd].connected = 0;
+                    u_data[sock_u_map[sockfd]].connected = 1;
                     close(sockfd);
                     FD_CLR(sockfd, &readfds);
                 }
@@ -275,9 +291,13 @@ void printonlineusers(userdata *arr)
     printf("\nCurrently Online:\n----------------------\n");
     for (int i = 0; i < MAX_CLIENT; i++)
     {
-        if (arr[i].connected == 1)
+        if (arr[i].connected == 2)
         {
-            printf("[%d] %s\n", arr[i].sockfd, arr[i].nick);
+            printf("[%d] %s \x1b[32m● Online\x1b[0m\n", arr[i].sockfd, arr[i].nick);
+        }
+        else if (arr[i].connected == 1)
+        {
+            printf("[-] %s \x1b[31m● Offline\x1b[0m\n", arr[i].nick);
         }
     }
     printf("----------------------\n");
@@ -286,4 +306,14 @@ void printonlineusers(userdata *arr)
 void itoa(int i, char *st)
 {
     sprintf(st, "%d", i);
+}
+
+int fetchUser(userdata *data, char *target)
+{
+    for (int i = 0; i < MAX_CLIENT; i++)
+    {
+        if (!strcmp(data[i].nick, target))
+            return i;
+    }
+    return -1;
 }
