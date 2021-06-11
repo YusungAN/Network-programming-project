@@ -22,3 +22,6 @@ thumbs.db
 
 # Ignore Shell files
 *.sh
+
+# Ignore readme.md file
+README.md

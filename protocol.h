@@ -12,9 +12,17 @@ typedef struct
     char data[1016]; // 8~ data (char[1016])
 } request;
 
+typedef request respond;
+
 typedef struct
 {
     char nick[30];
     int sockfd;
     int connected;
 } userdata; // userdata
+
+typedef struct
+{
+    int dest;
+    char message[1012];
+} messagedata;
