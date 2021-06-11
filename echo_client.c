@@ -35,13 +35,6 @@ int main()
 	memset(u_data, 0, sizeof(u_data));
 	char aBuffer[5];
 
-	fd_set readfds, allfds;
-	int fd_num;
-	respond res;
-	userdata u_data[30];
-	memset(u_data, 0, sizeof(u_data));
-	char aBuffer[5];
-
 	int mt_sock;
 	struct ip_mreq mt_join_adr;
     struct sockaddr_in mt_from_addr;
