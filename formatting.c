@@ -55,3 +55,35 @@ void parseOpcode(char *opcode, int *target)
     }
     *target = r;
 }
+
+void parseUserList(char *buf, userdata *list)
+{
+    int cnt;
+    char aBuffer[5] = {
+        0,
+    };
+    memcpy(aBuffer, buf, 4);
+    cnt = atoi(aBuffer);
+    int offset = 4;
+    for (int i = 0; i < cnt; i++)
+    {
+        memcpy(list[i].nick, &buf[offset], 30);
+        memcpy(aBuffer, &buf[offset + 30], 4);
+        list[i].sockfd = atoi(aBuffer);
+        switch (buf[offset + 34])
+        {
+        case '1':
+            list[i].connected = 1;
+            break;
+        case '2':
+            list[i].connected = 2;
+            break;
+
+        default:
+            list[i].connected = 0;
+            break;
+        }
+
+        offset += 35;
+    }
+}

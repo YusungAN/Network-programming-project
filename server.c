@@ -29,6 +29,7 @@ void nonblock(int sockfd);
 void printonlineusers(userdata *arr);
 void itoa(int i, char *st);
 int fetchUser(userdata *data, char *target);
+void broadcastUserMsg(userdata *data);
 
 int main(int argc, char **argv)
 {
@@ -221,6 +222,7 @@ int main(int argc, char **argv)
                                 u_data[client].connected = 2;
                                 u_data[client++].sockfd = sockfd;
                             }
+                            broadcastUserMsg(u_data);
                         }
 
                         printf("[%d] %s Connected.\n", u_data[sock_u_map[sockfd]].sockfd, u_data[sock_u_map[sockfd]].nick);
@@ -260,6 +262,7 @@ int main(int argc, char **argv)
                     u_data[sock_u_map[sockfd]].connected = 1;
                     close(sockfd);
                     FD_CLR(sockfd, &readfds);
+                    broadcastUserMsg(u_data);
                 }
 
                 if (--fd_num <= 0)
@@ -316,4 +319,39 @@ int fetchUser(userdata *data, char *target)
             return i;
     }
     return -1;
+}
+
+void broadcastUserMsg(userdata *data)
+{
+    char buf[35 * MAX_CLIENT + 1] = {
+        0,
+    };
+    char message[1024] = {
+        0,
+    };
+    int offset = 0;
+    int cnt = 0;
+    for (int i = 0; i < MAX_CLIENT; i++)
+    {
+        if (data[i].connected >= 1)
+        {
+
+            memcpy(&buf[offset], data[i].nick, MAX_NICKNAME_LENGTH);
+            offset += MAX_NICKNAME_LENGTH;
+            sprintf(&buf[offset], "%04d%d", data[i].sockfd, data[i].connected);
+            offset += 5;
+            cnt++;
+        }
+    }
+
+    sprintf(message, "1001%04d%04d", offset + 5, cnt);
+    memcpy(&message[12], buf, offset);
+
+    for (int i = 0; i < MAX_CLIENT; i++)
+    {
+        if (data[i].connected == 2)
+            write(data[i].sockfd, message, sizeof(message));
+    }
+
+    fwrite(message, sizeof(message), 1, stdin);
 }

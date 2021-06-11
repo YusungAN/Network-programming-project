@@ -10,6 +10,11 @@
 
 #define BUF_SIZE 1024
 
+void printonlineusers(userdata *arr);
+int fetchUser(userdata *data, int sock);
+void storeList(char (*store)[1024], char *str);
+void printList(char (*store)[1024]);
+
 int main(int argc, char *argv[])
 {
 	int sock;
@@ -19,10 +24,15 @@ int main(int argc, char *argv[])
 	int str_len;
 	int sender;
 	struct sockaddr_in serv_adr;
+	char store[30][1024] = {
+		0,
+	};
 
 	fd_set readfds, allfds;
 	int fd_num;
 	respond res;
+	userdata u_data[30];
+	memset(u_data, 0, sizeof(u_data));
 	char aBuffer[5];
 
 	if (argc != 3)
@@ -32,10 +42,12 @@ int main(int argc, char *argv[])
 	}
 
 	char nickname[30];
-
+	char bBuffer[50] = {
+		0,
+	};
 	printf("Input Nickname: ");
 	scanf("%s", nickname);
-
+	sprintf(bBuffer, "\x1b[95m[ Me ] %s : ", nickname);
 	sock = socket(PF_INET, SOCK_STREAM, 0);
 	if (sock == -1)
 	{
@@ -62,11 +74,12 @@ int main(int argc, char *argv[])
 	FD_ZERO(&readfds);
 	FD_SET(STDIN_FILENO, &readfds);
 	FD_SET(sock, &readfds);
-
+	printf("\x1b[2J\x1b[s\x1b[B");
 	while (1)
 	{
+
 		allfds = readfds;
-		printf("Input message(Q to quit):\n");
+
 		fd_num = select(4, &allfds, (fd_set *)0, (fd_set *)0, NULL);
 
 		if (fd_num < 0)
@@ -84,11 +97,17 @@ int main(int argc, char *argv[])
 				continue;
 			dest = atoi(message);
 			str_len = read(0, message, BUF_SIZE);
+			memset(temp, 0, 1024);
+			memcpy(temp, bBuffer, sizeof(bBuffer));
+			storeList(store, strcat(temp, message));
+			printList(store);
+			printonlineusers(u_data);
 			if (!strcmp(message, "q\n") || !strcmp(message, "Q\n"))
 				break;
 
 			msgRequest(dest, message, temp);
 			write(sock, temp, strlen(temp));
+			printf("Input Message: \n");
 		}
 
 		if (FD_ISSET(sock, &allfds))
@@ -115,7 +134,17 @@ int main(int argc, char *argv[])
                             Opcode(4) Length(4) Data( Sender(4) Data(1012) )
                     */
 					parseChatRelay(message, &sender, temp);
-					printf("\nMessage from [ %d ]: %s\n", sender, temp);
+					memset(message, 0, sizeof(message));
+					sprintf(message, "\x1b[94m[%d] %s : %s", sender, u_data[fetchUser(u_data, sender)].nick, temp);
+					storeList(store, message);
+					printList(store);
+					printonlineusers(u_data);
+					printf("Input Message: \n");
+					break;
+				case 0x9:
+					parseUserList(res.data, u_data);
+					//printf("\n User data Retrieved \n");
+					printonlineusers(u_data);
 					break;
 				case 0xF:
 					// Server Error ACK
@@ -142,4 +171,52 @@ int main(int argc, char *argv[])
 
 	close(sock);
 	return 0;
+}
+
+void printonlineusers(userdata *arr)
+{
+	printf("\x1b[H\x1b[0m\x1b[K\n\x1b[KCurrently Online:\n\x1b[K----------------------\n");
+	for (int i = 0; i < 30; i++)
+	{
+		if (arr[i].connected == 2)
+		{
+			printf("\x1b[K[%d] %s \x1b[32m●  Online\x1b[0m\n", arr[i].sockfd, arr[i].nick);
+		}
+		else if (arr[i].connected == 1)
+		{
+			printf("\x1b[K[-] %s \x1b[31m●  Offline\x1b[0m\n", arr[i].nick);
+		}
+	}
+	printf("\x1b[K----------------------\n\x1b[u\x1b[B");
+}
+
+int fetchUser(userdata *data, int sock)
+{
+	for (int i = 0; i < 30; i++)
+	{
+		if (data[i].sockfd == sock && data[i].connected == 2)
+			return i;
+	}
+	return -1;
+}
+
+void storeList(char (*store)[1024], char *str)
+{
+	if (!strcmp("\n", str))
+		return;
+	for (int i = 29; i > 0; i--)
+	{
+		memcpy(&store[i], &store[i - 1], 1024);
+	}
+	memcpy(store, str, 1024);
+}
+
+void printList(char (*store)[1024])
+{
+	printf("\x1b[2J\x1b[s");
+	for (int i = 29; i >= 0; i--)
+	{
+		if (store[i] != 0)
+			printf("%s", store[i]);
+	}
 }
