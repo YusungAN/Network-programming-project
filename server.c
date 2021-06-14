@@ -19,6 +19,8 @@
 #define MAXLINE 1024
 #define PORTNUM 9100
 #define SOCK_SETSIZE 1021
+#define INTERVAL 10
+#define MULTICAST_INTERVAL 2000
 
 #define MAX_CLIENT 30
 #define MAX_NICKNAME_LENGTH 30
@@ -26,6 +28,8 @@
 void nonblock(int sockfd);
 void printonlineusers(userdata *arr);
 void itoa(int i, char *st);
+int fetchUser(userdata *data, char *target);
+void broadcastUserMsg(userdata *data);
 
 int main(int argc, char **argv)
 {
@@ -37,6 +41,9 @@ int main(int argc, char **argv)
     int readn;
     int i = 0;
     int on;
+    int timer = 0;
+
+    int client = 0;
 
     UserLogin loginArr[7];
     strcpy(loginArr[0].nickname, "yusung");
@@ -55,6 +62,11 @@ int main(int argc, char **argv)
     strcpy(loginArr[6].password, "0322");
 
     userdata u_data[MAX_CLIENT];
+    memset(u_data, 0, sizeof(u_data));
+    int sock_u_map[MAX_CLIENT] = {
+        0,
+    };
+    messagedata m_data;
 
     char aBuffer[5];
     char buf[MAXLINE];
@@ -145,20 +157,24 @@ int main(int argc, char **argv)
     memcpy(&CM_info_message[off], &send_msg.ip, sizeof(send_msg.ip));
     off += sizeof(send_msg.ip);
 
+    multicast_tv.tv_sec = 2;
+    multicast_tv.tv_usec = 0;
+
     while (1)
     {
-        //multicast server info
-        multicast_tv.tv_sec = 2;
-        multicast_tv.tv_usec = 0;
         allfds = readfds;
         fd_num = select(maxfd + 1, &allfds, (fd_set *)0,
                         (fd_set *)0, &multicast_tv);
 
         if (fd_num == 0)
         {
-            printf("send server info\n");
+            printf("\x1b[H\x1b[Jsend server info\n");
             printf("%s\n", &CM_info_message[0]);
             sendto(multicast_sock, CM_info_message, strlen(CM_info_message), 0, (struct sockaddr *)&multicast_serv_addr, sizeof(multicast_serv_addr));
+
+            printonlineusers(u_data);
+            multicast_tv.tv_sec = 2;
+            multicast_tv.tv_usec = 0;
         }
 
         if (FD_ISSET(listen_fd, &allfds)) // accept()
@@ -166,7 +182,7 @@ int main(int argc, char **argv)
             addrlen = sizeof(client_addr);
             client_fd = accept(listen_fd,
                                (struct sockaddr *)&client_addr, &addrlen);
-            nonblock(client_fd);
+            //nonblock(client_fd);
             FD_SET(client_fd, &readfds);
 
             if (client_fd > maxfd)
@@ -180,9 +196,10 @@ int main(int argc, char **argv)
             sockfd = i;
             if (FD_ISSET(sockfd, &allfds))
             {
-
+                memset(buf, 0, sizeof(buf));
                 if ((readn = read(sockfd, buf, sizeof(buf) - 1)) > 0)
                 {
+                    printf("[RECV] %s\n", buf);
                     memset(&req, 0, sizeof(req));
                     memset(aBuffer, 0, sizeof(aBuffer));
                     memcpy(aBuffer, buf, 4);
@@ -228,7 +245,7 @@ int main(int argc, char **argv)
 
                         if (nick_length > 30)
                         {
-                            perror("Nickname cannot be longer than 30 letters");
+                            perror("Nickname cannot be longer than 30 letters\n");
                         }
                         if (pw_length > 30)
                         {
@@ -236,21 +253,7 @@ int main(int argc, char **argv)
                         }
                         if (login_success == 0)
                         {
-<<<<<<< Updated upstream
-                            memset(&u_data[sockfd], 0, sizeof(userdata));
-                            memcpy(&u_data[sockfd].nick, req.data, MAX_NICKNAME_LENGTH);
-                            u_data[sockfd].connected = 1;
-                        }
-
-                        printonlineusers(u_data);
-
-=======
                             perror("Nickname and pw does not match");
-                            char err_msg[50];
-                            memset(err_msg, 0, sizeof(err_msg));
-                            strcpy(err_msg, "Nickname and pw does not match");
-                            write(sockfd, err_msg, strlen(err_msg));
-                            //--------
                         }
                         else if (login_success)
                         {
@@ -274,14 +277,24 @@ int main(int argc, char **argv)
                         printf("[%d] %s Connected.\n", u_data[sock_u_map[sockfd]].sockfd, u_data[sock_u_map[sockfd]].nick);
                         //printonlineusers(u_data);
                        }
->>>>>>> Stashed changes
                         break;
 
                     case 0x1: // Message Send Request
-                        /*
-                            Data - ~ 1028 byte
-                            Opcode(4) Length(4) Data( Desc(4) Data(1024) )
+                              /*
+                            Data - ~ 1012 byte
+                            Opcode(4) Length(4) Data( Desc(4) Data(1012) )
                         */
+                        memset(&m_data, 0, sizeof(m_data));
+                        memset(aBuffer, 0, sizeof(aBuffer));
+                        memcpy(aBuffer, &req.data, 4);
+                        m_data.dest = atoi(aBuffer);
+                        if (m_data.dest < 5)
+                            continue;
+                        memcpy(m_data.message, &req.data[4], req.length - 4);
+
+                        memset(buf, 0, sizeof(buf));
+                        sprintf(buf, "1000%04ld%04d%s", strlen(m_data.message) + 4, sockfd, m_data.message);
+                        write(m_data.dest, buf, strlen(buf));
                         break;
 
                     default:
@@ -289,16 +302,16 @@ int main(int argc, char **argv)
                     }
 
                     buf[readn] = 0;
-                    printf("[%d] = %s", sockfd, req.data);
-                    write(sockfd, buf, strlen(buf));
+                    printf("[%d] = %s\n", sockfd, req.data);
+                    //write(sockfd, buf, strlen(buf));
                 }
                 else
                 {
                     printf("close\n");
-                    u_data[sockfd].connected = 0;
+                    u_data[sock_u_map[sockfd]].connected = 1;
                     close(sockfd);
                     FD_CLR(sockfd, &readfds);
-                    printonlineusers(u_data);
+                    broadcastUserMsg(u_data);
                 }
 
                 if (--fd_num <= 0)
@@ -327,17 +340,67 @@ void nonblock(int sockfd) // Making Socket non-blocking socket
 
 void printonlineusers(userdata *arr)
 {
-    printf("\nCurrently Online:\n");
+    printf("\nCurrently Online:\n----------------------\n");
     for (int i = 0; i < MAX_CLIENT; i++)
     {
-        if (arr[i].connected == 1)
+        if (arr[i].connected == 2)
         {
-            printf("[%d] %s\n", arr[i].sockfd, arr[i].nick);
+            printf("[%d] %s \x1b[32m● Online\x1b[0m\n", arr[i].sockfd, arr[i].nick);
+        }
+        else if (arr[i].connected == 1)
+        {
+            printf("[-] %s \x1b[31m● Offline\x1b[0m\n", arr[i].nick);
         }
     }
+    printf("----------------------\n");
 }
 
 void itoa(int i, char *st)
 {
     sprintf(st, "%d", i);
+}
+
+int fetchUser(userdata *data, char *target)
+{
+    for (int i = 0; i < MAX_CLIENT; i++)
+    {
+        if (!strcmp(data[i].nick, target))
+            return i;
+    }
+    return -1;
+}
+
+void broadcastUserMsg(userdata *data)
+{
+    char buf[35 * MAX_CLIENT + 1] = {
+        0,
+    };
+    char message[1024] = {
+        0,
+    };
+    int offset = 0;
+    int cnt = 0;
+    for (int i = 0; i < MAX_CLIENT; i++)
+    {
+        if (data[i].connected >= 1)
+        {
+
+            memcpy(&buf[offset], data[i].nick, MAX_NICKNAME_LENGTH);
+            offset += MAX_NICKNAME_LENGTH;
+            sprintf(&buf[offset], "%04d%d", data[i].sockfd, data[i].connected);
+            offset += 5;
+            cnt++;
+        }
+    }
+
+    sprintf(message, "1001%04d%04d", offset + 5, cnt);
+    memcpy(&message[12], buf, offset);
+
+    for (int i = 0; i < MAX_CLIENT; i++)
+    {
+        if (data[i].connected == 2)
+            write(data[i].sockfd, message, sizeof(message));
+    }
+
+    fwrite(message, sizeof(message), 1, stdin);
 }
