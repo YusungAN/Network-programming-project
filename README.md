@@ -15,7 +15,7 @@
 #### Opcode 종류
 | Opcode | Name | Description | Data Configuration (Optional) |
 | :---:   | :-: | :-: | :-: |
-| 0000 (0x0) | Client Login | 클라이언트 최초 로그인 | nickname (~30 byte) password (~30 byte) |
+| 0000 (0x0) | Client Login | 클라이언트 최초 로그인 | nick_length (~4 byte) nickname (~30 byte) pw_length (~4 byte) password (~30 byte) |
 | 0001 (0x1) | Client Chat Request | 채팅 요청 | Dest (4 byte), Message (~1012 byte) |
 | 1000 (0x8) | Server Chat Relay | 채팅 전달 | Sender(4 byte), Message (~1012 byte) |
 | 1001 (0x9) | Server User List | 접속 유저 현황 | Count(4 byte), Userdata(nick(30), sockfd(4), connected(1))\*Count |
