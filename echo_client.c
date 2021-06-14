@@ -92,12 +92,17 @@ int main()
     close(mt_sock);
 
 	char nickname[30];
+	char password[30];
+
 	char bBuffer[50] = {
 		0,
 	};
 	printf("Input Nickname: ");
 	scanf("%s", nickname);
+	printf("Input password: ");
+	scanf("%s", password);
 	sprintf(bBuffer, "\x1b[95m[ Me ] %s : ", nickname);
+	
 	sock = socket(PF_INET, SOCK_STREAM, 0);
 	if (sock == -1)
 	{
@@ -105,7 +110,6 @@ int main()
 		exit(0);
 	}
 
-	//printf("%d", strcmp(ip_from_s, "192.168.100.92"));
 	memset(&serv_adr, 0, sizeof(serv_adr));
 	serv_adr.sin_family = AF_INET;
 	serv_adr.sin_addr.s_addr = inet_addr(ip_from_s);
@@ -119,7 +123,7 @@ int main()
 	else
 		printf("Connected...........\n");
 
-	initialHandshakeRequest(nickname, message);
+	initialHandshakeRequest(nickname, password, message);
 	write(sock, message, strlen(message));
 
 	FD_ZERO(&readfds);
