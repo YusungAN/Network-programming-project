@@ -206,77 +206,84 @@ int main(int argc, char **argv)
                     req.opcode = atoi(aBuffer);
                     memcpy(aBuffer, &buf[4], 4);
                     req.length = atoi(aBuffer);
-                    
+
                     memcpy(req.data, &buf[8], req.length); //req.length);
 
                     switch (req.opcode)
                     {
 
                     case 0x0: // Initial Connecting Information
-                        /*
+                              /*
                             Data - 30Byte
                             Opcode(4) Length(4) Data( Nick(30) ) EOF
                         */
-                       {
-                        int login_success = 0;
-
-                        int nick_length = 0, pw_length = 0;
-                        memset(aBuffer, 0, sizeof(aBuffer));
-                        memcpy(aBuffer, &buf[8], 4);
-                        nick_length = atoi(aBuffer);
-                        memset(aBuffer, 0, sizeof(aBuffer));
-                        memcpy(aBuffer, &buf[12+nick_length], 4);
-                        pw_length = atoi(aBuffer); 
-
-                        char nickname[30];
-                        memset(nickname, 0, sizeof(nickname));
-                        memcpy(nickname, &buf[12], nick_length); 
-
-                        char password[30];
-                        memset(password, 0, sizeof(password));
-                        memcpy(password, &buf[16+nick_length], nick_length);
-                        printf("%s %s\n", nickname, password);
-                        for (int i = 0; i < 7; i++) {
-                            if (!strcmp(nickname, loginArr[i].nickname) && !strcmp(password, loginArr[i].password)) {
-                                login_success = 1;
-                                break;
-                            }
-                        }
-
-                        if (nick_length > 30)
                         {
-                            perror("Nickname cannot be longer than 30 letters\n");
-                        }
-                        if (pw_length > 30)
-                        {
-                            perror("Password cannot be longer than 30 letters\n");
-                        }
-                        if (login_success == 0)
-                        {
-                            perror("Nickname and pw does not match");
-                        }
-                        else if (login_success)
-                        {
-                            if ((on = fetchUser(u_data, nickname)) > -1)
+                            int login_success = 0;
+
+                            int nick_length = 0, pw_length = 0;
+                            memset(aBuffer, 0, sizeof(aBuffer));
+                            memcpy(aBuffer, &buf[8], 4);
+                            nick_length = atoi(aBuffer);
+                            memset(aBuffer, 0, sizeof(aBuffer));
+                            memcpy(aBuffer, &buf[12 + nick_length], 4);
+                            pw_length = atoi(aBuffer);
+
+                            char nickname[30];
+                            memset(nickname, 0, sizeof(nickname));
+                            memcpy(nickname, &buf[12], nick_length);
+
+                            char password[30];
+                            memset(password, 0, sizeof(password));
+                            memcpy(password, &buf[16 + nick_length], nick_length);
+                            printf("%s %s\n", nickname, password);
+                            for (int i = 0; i < 7; i++)
                             {
-                                sock_u_map[sockfd] = on;
-                                u_data[sock_u_map[sockfd]].sockfd = sockfd;
-                                u_data[sock_u_map[sockfd]].connected = 2;
+                                if (!strcmp(nickname, loginArr[i].nickname) && !strcmp(password, loginArr[i].password))
+                                {
+                                    login_success = 1;
+                                    break;
+                                }
                             }
-                            else
-                            {
-                                sock_u_map[sockfd] = client;
-                                memset(&u_data[client], 0, sizeof(userdata));
-                                memcpy(&u_data[client].nick, nickname, MAX_NICKNAME_LENGTH);
-                                u_data[client].connected = 2;
-                                u_data[client++].sockfd = sockfd;
-                            }
-                            broadcastUserMsg(u_data);
-                        }
 
-                        printf("[%d] %s Connected.\n", u_data[sock_u_map[sockfd]].sockfd, u_data[sock_u_map[sockfd]].nick);
-                        //printonlineusers(u_data);
-                       }
+                            if (nick_length > 30)
+                            {
+                                perror("Nickname cannot be longer than 30 letters\n");
+                            }
+                            if (pw_length > 30)
+                            {
+                                perror("Password cannot be longer than 30 letters\n");
+                            }
+                            if (login_success == 0)
+                            {
+                                write(sockfd, "111140000", 9);
+                                printf("close\n");
+                                //u_data[sock_u_map[sockfd]].connected = 1;
+                                close(sockfd);
+                                FD_CLR(sockfd, &readfds);
+                                //broadcastUserMsg(u_data);
+                            }
+                            else if (login_success)
+                            {
+                                if ((on = fetchUser(u_data, nickname)) > -1)
+                                {
+                                    sock_u_map[sockfd] = on;
+                                    u_data[sock_u_map[sockfd]].sockfd = sockfd;
+                                    u_data[sock_u_map[sockfd]].connected = 2;
+                                }
+                                else
+                                {
+                                    sock_u_map[sockfd] = client;
+                                    memset(&u_data[client], 0, sizeof(userdata));
+                                    memcpy(&u_data[client].nick, nickname, MAX_NICKNAME_LENGTH);
+                                    u_data[client].connected = 2;
+                                    u_data[client++].sockfd = sockfd;
+                                }
+                                broadcastUserMsg(u_data);
+                            }
+
+                            printf("[%d] %s Connected.\n", u_data[sock_u_map[sockfd]].sockfd, u_data[sock_u_map[sockfd]].nick);
+                            //printonlineusers(u_data);
+                        }
                         break;
 
                     case 0x1: // Message Send Request

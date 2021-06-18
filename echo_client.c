@@ -14,6 +14,7 @@ void printonlineusers(userdata *arr);
 int fetchUser(userdata *data, int sock);
 void storeList(char (*store)[1024], char *str);
 void printList(char (*store)[1024]);
+void printInput(int target, userdata *data);
 
 int main()
 {
@@ -23,6 +24,8 @@ int main()
 	char temp[BUF_SIZE];
 	int str_len;
 	int sender;
+	int errno;
+	int target = -1;
 	struct sockaddr_in serv_adr;
 	char store[30][1024] = {
 		0,
@@ -37,72 +40,73 @@ int main()
 
 	int mt_sock;
 	struct ip_mreq mt_join_adr;
-    struct sockaddr_in mt_from_addr;
-    struct sockaddr_in mt_serv_addr;
-    char mt_ip[20];
-    strcpy(mt_ip, "239.0.110.1");
+	struct sockaddr_in mt_from_addr;
+	struct sockaddr_in mt_serv_addr;
+	char mt_ip[20];
+	strcpy(mt_ip, "239.0.110.1");
 	int mt_port = 5100;
-	
+
 	printf("Finding Server...\n");
 
-	mt_sock=socket(PF_INET, SOCK_DGRAM, 0);
-	if(mt_sock == -1)
+	mt_sock = socket(PF_INET, SOCK_DGRAM, 0);
+	if (mt_sock == -1)
 		printf("socket() error");
 
-    memset(&mt_serv_addr, 0, sizeof(mt_serv_addr));
-	mt_serv_addr.sin_family=AF_INET;
-	mt_serv_addr.sin_addr.s_addr=inet_addr(mt_ip);
-	mt_serv_addr.sin_port=htons(mt_port);
+	memset(&mt_serv_addr, 0, sizeof(mt_serv_addr));
+	mt_serv_addr.sin_family = AF_INET;
+	mt_serv_addr.sin_addr.s_addr = inet_addr(mt_ip);
+	mt_serv_addr.sin_port = htons(mt_port);
 
-    if (bind(mt_sock, (struct sockaddr *)&mt_serv_addr, sizeof(mt_serv_addr)) == -1) {
-        printf("bind err");
-        close(mt_sock);
-        exit(1);
-    }
+	if (bind(mt_sock, (struct sockaddr *)&mt_serv_addr, sizeof(mt_serv_addr)) == -1)
+	{
+		printf("bind err");
+		close(mt_sock);
+		exit(1);
+	}
 
-    mt_join_adr.imr_multiaddr.s_addr = inet_addr(mt_ip);
-    mt_join_adr.imr_interface.s_addr = htonl(INADDR_ANY);
+	mt_join_adr.imr_multiaddr.s_addr = inet_addr(mt_ip);
+	mt_join_adr.imr_interface.s_addr = htonl(INADDR_ANY);
 
-    setsockopt(mt_sock, IPPROTO_IP, IP_ADD_MEMBERSHIP, (void*)&mt_join_adr, sizeof(mt_join_adr));
-	
-    int mt_str_len;
+	setsockopt(mt_sock, IPPROTO_IP, IP_ADD_MEMBERSHIP, (void *)&mt_join_adr, sizeof(mt_join_adr));
 
-    char mt_buf[1024];
-    memset(&mt_from_addr, 0, sizeof(mt_from_addr));
-    int adr_sz;
+	int mt_str_len;
 
-    int opcode_from_s;
-    int port_from_s;
-    char ip_from_s[20];
+	char mt_buf[1024];
+	memset(&mt_from_addr, 0, sizeof(mt_from_addr));
+	int adr_sz;
 
-    while (1) {
-        memset(&mt_buf, 0, sizeof(mt_buf));
-        adr_sz = sizeof(mt_from_addr);
-        mt_str_len = recvfrom(mt_sock, mt_buf, sizeof(mt_buf), 0, (struct sockaddr*)&mt_from_addr, &adr_sz);
-        mt_buf[mt_str_len] = 0;
-        parseCMInfo(mt_buf, &opcode_from_s, &port_from_s, ip_from_s);
-        if (opcode_from_s == 1000) {
+	int opcode_from_s;
+	int port_from_s;
+	char ip_from_s[20];
+
+	while (1)
+	{
+		memset(&mt_buf, 0, sizeof(mt_buf));
+		adr_sz = sizeof(mt_from_addr);
+		mt_str_len = recvfrom(mt_sock, mt_buf, sizeof(mt_buf), 0, (struct sockaddr *)&mt_from_addr, &adr_sz);
+		mt_buf[mt_str_len] = 0;
+		parseCMInfo(mt_buf, &opcode_from_s, &port_from_s, ip_from_s);
+		if (opcode_from_s == 1000)
+		{
 			printf("Server Information: %d %d %s\n", opcode_from_s, port_from_s, ip_from_s);
 			break;
-		} else {
+		}
+		else
+		{
 			printf("Finding Server...\n");
 		}
-    }
+	}
 
-    close(mt_sock);
+	close(mt_sock);
 
 	char nickname[30];
 	char password[30];
 
-	char bBuffer[50] = {
-		0,
-	};
 	printf("Input Nickname: ");
 	scanf("%s", nickname);
 	printf("Input password: ");
 	scanf("%s", password);
-	sprintf(bBuffer, "\x1b[95m[ Me ] %s : ", nickname);
-	
+
 	sock = socket(PF_INET, SOCK_STREAM, 0);
 	if (sock == -1)
 	{
@@ -129,7 +133,7 @@ int main()
 	FD_ZERO(&readfds);
 	FD_SET(STDIN_FILENO, &readfds);
 	FD_SET(sock, &readfds);
-	printf("\x1b[2J\x1b[s\x1b[B");
+	printf("\x1b[2J\x1b[s");
 	while (1)
 	{
 
@@ -147,22 +151,50 @@ int main()
 		{
 			memset(message, 0, BUF_SIZE);
 			//fgets(message, BUF_SIZE, stdin);
+			if (target == -1)
+			{
+				if ((str_len = read(0, message, BUF_SIZE)) > 0)
+				{
+					target = atoi(message);
+				}
+				printList(store);
+				printonlineusers(u_data);
+				if (fetchUser(u_data, target) == -1)
+				{
+					printf("User Not Exists!\n");
+					target = -1;
+					printInput(target, u_data);
+					continue;
+				}
+				printInput(target, u_data);
+			}
+			else
+			{
+				if ((str_len = read(0, message, BUF_SIZE)) > 0)
+				{
+					memset(temp, 0, 1024);
 
-			if (read(0, message, 1) < 0)
-				continue;
-			dest = atoi(message);
-			str_len = read(0, message, BUF_SIZE);
-			memset(temp, 0, 1024);
-			memcpy(temp, bBuffer, sizeof(bBuffer));
-			storeList(store, strcat(temp, message));
-			printList(store);
-			printonlineusers(u_data);
-			if (!strcmp(message, "q\n") || !strcmp(message, "Q\n"))
-				break;
-
-			msgRequest(dest, message, temp);
-			write(sock, temp, strlen(temp));
-			printf("Input Message: \n");
+					printf("%s\n", message);
+					if (!strcmp(message, "Q\n") || !strcmp(message, "q\n"))
+					{
+						target = -1;
+						printList(store);
+						printonlineusers(u_data);
+						printInput(target, u_data);
+						continue;
+					}
+					else
+					{
+						msgRequest(target, message, temp);
+						write(sock, temp, strlen(temp));
+						sprintf(temp, "\x1b[95m[ Me ] -> %s : %s", u_data[fetchUser(u_data, target)].nick, message);
+						storeList(store, temp);
+						printList(store);
+						printonlineusers(u_data);
+						printInput(target, u_data);
+					}
+				}
+			}
 		}
 
 		if (FD_ISSET(sock, &allfds))
@@ -194,12 +226,13 @@ int main()
 					storeList(store, message);
 					printList(store);
 					printonlineusers(u_data);
-					printf("Input Message: \n");
+					printInput(target, u_data);
 					break;
 				case 0x9:
 					parseUserList(res.data, u_data);
 					//printf("\n User data Retrieved \n");
 					printonlineusers(u_data);
+					printInput(target, u_data);
 					break;
 				case 0xF:
 					// Server Error ACK
@@ -210,7 +243,18 @@ int main()
 
 					// TODO
 
-					break;
+					parseOpcode(res.data, &errno);
+					switch (errno)
+					{
+					case 0x0:
+						printf("\n\nLogin Failed!\n\nCheck your ID and PWD and try again!\n");
+						exit(1);
+						break;
+					default:
+						printf("An error has occured. errno: %d\n", errno);
+						exit(1);
+						break;
+					}
 				default:
 					break;
 				}
@@ -242,7 +286,7 @@ void printonlineusers(userdata *arr)
 			printf("\x1b[K[-] %s \x1b[31m●  Offline\x1b[0m\n", arr[i].nick);
 		}
 	}
-	printf("\x1b[K----------------------\n\x1b[u\x1b[B");
+	printf("\x1b[K----------------------\n\x1b[B");
 }
 
 int fetchUser(userdata *data, int sock)
@@ -273,5 +317,19 @@ void printList(char (*store)[1024])
 	{
 		if (store[i] != 0)
 			printf("%s", store[i]);
+	}
+	printf("\x1b[B");
+}
+
+void printInput(int target, userdata *data)
+{
+	printf("\x1b[u\x1b[B");
+	if (target == -1)
+	{
+		printf("Input target:\n");
+	}
+	else
+	{
+		printf("To %s : \n", data[fetchUser(data, target)].nick);
 	}
 }
